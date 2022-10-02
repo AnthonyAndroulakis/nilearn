@@ -10,12 +10,15 @@ import collections.abc
 import copy
 import warnings
 
+import math
 import nibabel
 import numpy as np
 from joblib import Parallel, delayed
+import skimage
 from scipy.ndimage import (
     label,
     gaussian_filter1d,
+    distance_transform_edt,
     generate_binary_structure,
 )
 from scipy.stats import scoreatpercentile
@@ -283,6 +286,93 @@ def smooth_img(imgs, fwhm):
     else:
         return ret
 
+#from Chris's pydog
+def bound(lo, hi, val):
+    return max(lo, min(hi, val))
+
+#from Chris's pydog
+def dehaze(img, level):
+    """use Otsu to threshold https://scikit-image.org/docs/stable/auto_examples/segmentation/plot_multiotsu.html
+        n.b. threshold used to mask image: dark values are zeroed, but result is NOT binary
+        level: value 1..5 with larger values preserving more bright voxels
+        level: dark_classes/total_classes
+            1: 3/4
+            2: 2/3
+            3: 1/2
+            4: 1/3
+            5: 1/4
+    """
+    fdata = img.get_fdata()
+    level = bound(1, 5, level)
+    n_classes = abs(3 - level) + 2
+    dark_classes = 4 - level
+    dark_classes = bound(1, 3, dark_classes)
+    thresholds = skimage.filters.threshold_multiotsu(fdata, n_classes)
+    thresh = thresholds[dark_classes - 1]
+    print("Zeroing voxels darker than ", thresh)
+    fdata[fdata < thresh] = 0
+    return fdata
+
+#from Chris's pydog
+def binary_zero_crossing(img):
+    #binarize: negative voxels are zero
+    edge = np.where(img > 0.0, 1, 0)
+    edge = distance_transform_edt(edge)
+    edge[edge > 1] = 0
+    edge[edge > 0] = 1
+    edge = edge.astype('uint8')
+    return edge
+
+#from Chris's pydog
+def difference_of_gaussian(img, fdata, fwhmNarrow):
+    #apply Difference of Gaussian filter
+    # https://en.wikipedia.org/wiki/Difference_of_Gaussians
+    # https://en.wikipedia.org/wiki/Marr–Hildreth_algorithm
+    #D. Marr and E. C. Hildreth. Theory of edge detection. Proceedings of the Royal Society, London B, 207:187-217, 1980
+    #Choose the narrow kernel width
+    #  human cortex about 2.5mm thick
+    #arbitrary ratio of wide to narrow kernel
+    #  Marr and Hildreth (1980) suggest 1.6
+    #  Wilson and Giese (1977) suggest 1.5
+    #Large values yield smoother results
+    fwhmWide = fwhmNarrow * 1.6
+    #optimization: we will use the narrow Gaussian as the input to the wide filter
+    fwhmWide = math.sqrt((fwhmWide*fwhmWide) - (fwhmNarrow*fwhmNarrow));
+    print('Narrow/Wide FWHM {} / {}'.format(fwhmNarrow, fwhmWide))
+    img25 = _smooth_array(fdata, img.affine, fwhmNarrow)
+    img40 = _smooth_array(img25, img.affine, fwhmWide)
+    img = img25 - img40
+    img = binary_zero_crossing(img)
+    return img
+
+@fill_doc
+def dog_img(img, fwhm):
+    """Find edges of a NIfTI image using the Difference of Gaussian (DoG).
+
+    todo
+
+    Parameters
+    ----------
+    img : Niimg-like object
+        Image(s) to run DoG on (see :ref:`extracting_data`
+        for a detailed description of the valid input types).
+    fwhm : todo, int
+
+    Returns
+    -------
+    :class:`nibabel.nifti1.Nifti1Image`
+
+    """
+
+    img = check_niimg(img)
+    
+    print(f'Input intensity range {np.nanmin(img)}..{np.nanmax(img)}')
+    print(f'Image shape {img.shape[0]}x{img.shape[1]}x{img.shape[2]}')
+
+    dog_fdata = dehaze(img, 5)
+    dog = difference_of_gaussian(img, dog_fdata, fwhm)
+    out_img = new_img_like(img, dog, img.affine, copy_header=True)
+    return out_img
 
 def _crop_img_to(img, slices, copy=True):
     """Crops an image to a smaller size.
