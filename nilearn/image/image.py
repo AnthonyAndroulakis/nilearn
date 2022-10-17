@@ -358,8 +358,6 @@ def difference_of_gaussian(fdata, affine, fwhmNarrow):
     fwhmNarrow : int
         Narrow kernel width, in millimeters. Is an arbitrary ratio of wide to narrow kernel.
             human cortex about 2.5mm thick
-            Marr and Hildreth (1980) suggest 1.6
-            Wilson and Giese (1977) suggest 1.5
             Large values yield smoother results
 
     Returns
@@ -368,13 +366,16 @@ def difference_of_gaussian(fdata, affine, fwhmNarrow):
 
     """
 
+    #Hardcode 1.6 as ratio of wide versus narrow FWHM
+    # Marr and Hildreth (1980) suggest narrow to wide ratio of 1.6
+    # Wilson and Giese (1977) suggest narrow to wide ratio of 1.5
     fwhmWide = fwhmNarrow * 1.6
     #optimization: we will use the narrow Gaussian as the input to the wide filter
     fwhmWide = math.sqrt((fwhmWide*fwhmWide) - (fwhmNarrow*fwhmNarrow));
     print('Narrow/Wide FWHM {} / {}'.format(fwhmNarrow, fwhmWide))
-    img25 = _smooth_array(fdata, affine, fwhmNarrow)
-    img40 = _smooth_array(img25, affine, fwhmWide)
-    img = img25 - img40
+    imgNarrow = _smooth_array(fdata, affine, fwhmNarrow)
+    imgWide = _smooth_array(imgNarrow, affine, fwhmWide)
+    img = imgNarrow - imgWide
     img = binary_zero_crossing(img)
     return img
 
@@ -402,9 +403,9 @@ def dog_img(img, fwhm):
     print(f'Input intensity range {np.nanmin(img)}..{np.nanmax(img)}')
     print(f'Image shape {img.shape[0]}x{img.shape[1]}x{img.shape[2]}')
 
-    dog_fdata = dehaze(img, 5)
+    dog_fdata = dehaze(img, 3)
     dog = difference_of_gaussian(dog_fdata, img.affine, fwhm)
-    out_img = new_img_like(img, dog, img.affine, copy_header=True)
+    out_img = new_img_like(img, dog, img.affine, copy_header=False)
     return out_img
 
 def _crop_img_to(img, slices, copy=True):
