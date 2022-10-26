@@ -34,6 +34,7 @@ from .._utils.niimg import _get_data, _safe_get_data
 from .._utils.niimg_conversions import _check_same_fov, _index_img
 from .._utils.param_validation import check_threshold
 from .._utils.helpers import rename_parameters, stringify_path
+from .._utils import logger
 
 
 def get_data(img):
@@ -289,7 +290,7 @@ def smooth_img(imgs, fwhm):
 def bound(lo, hi, val):
     return max(lo, min(hi, val))
 
-def dehaze(img, level):
+def dehaze(img, level, verbose=0):
     """use Otsu to threshold https://scikit-image.org/docs/stable/auto_examples/segmentation/plot_multiotsu.html
         n.b. threshold used to mask image: dark values are zeroed, but result is NOT binary
 
@@ -306,6 +307,9 @@ def dehaze(img, level):
             3: 1/2
             4: 1/3
             5: 1/4
+    verbose : :obj:`int`, optional
+        Controls the amount of verbosity: higher numbers give more messages
+        (0 means no messages). Default=0.
 
 
     Returns
@@ -320,7 +324,7 @@ def dehaze(img, level):
     dark_classes = bound(1, 3, dark_classes)
     thresholds = skimage.filters.threshold_multiotsu(fdata, n_classes)
     thresh = thresholds[dark_classes - 1]
-    print("Zeroing voxels darker than ", thresh)
+    logger.log("Zeroing voxels darker than {}".format(thresh), verbose=verbose)
     fdata[fdata < thresh] = 0
     return fdata
 
@@ -343,7 +347,7 @@ def binary_zero_crossing(fdata):
     edge = edge.astype('uint8')
     return edge
 
-def difference_of_gaussian(fdata, affine, fwhmNarrow):
+def difference_of_gaussian(fdata, affine, fwhmNarrow, verbose=0):
     """Apply Difference of Gaussian (DoG) filter.
     https://en.wikipedia.org/wiki/Difference_of_Gaussians
     https://en.wikipedia.org/wiki/Marr–Hildreth_algorithm
@@ -359,6 +363,9 @@ def difference_of_gaussian(fdata, affine, fwhmNarrow):
         Narrow kernel width, in millimeters. Is an arbitrary ratio of wide to narrow kernel.
             human cortex about 2.5mm thick
             Large values yield smoother results
+    verbose : :obj:`int`, optional
+        Controls the amount of verbosity: higher numbers give more messages
+        (0 means no messages). Default=0.
 
     Returns
     -------
@@ -371,8 +378,8 @@ def difference_of_gaussian(fdata, affine, fwhmNarrow):
     # Wilson and Giese (1977) suggest narrow to wide ratio of 1.5
     fwhmWide = fwhmNarrow * 1.6
     #optimization: we will use the narrow Gaussian as the input to the wide filter
-    fwhmWide = math.sqrt((fwhmWide*fwhmWide) - (fwhmNarrow*fwhmNarrow));
-    print('Narrow/Wide FWHM {} / {}'.format(fwhmNarrow, fwhmWide))
+    fwhmWide = math.sqrt((fwhmWide*fwhmWide) - (fwhmNarrow*fwhmNarrow))
+    logger.log('Narrow/Wide FWHM {} / {}'.format(fwhmNarrow, fwhmWide), verbose=verbose)
     imgNarrow = _smooth_array(fdata, affine, fwhmNarrow)
     imgWide = _smooth_array(imgNarrow, affine, fwhmWide)
     img = imgNarrow - imgWide
@@ -380,7 +387,7 @@ def difference_of_gaussian(fdata, affine, fwhmNarrow):
     return img
 
 @fill_doc
-def dog_img(img, fwhm):
+def dog_img(img, fwhm, verbose=0):
     """Find edges of a NIfTI image using the Difference of Gaussian (DoG).
 
     Parameters
@@ -390,6 +397,9 @@ def dog_img(img, fwhm):
         for a detailed description of the valid input types).
     fwhm : int
     	Edge detection strength, as a full-width at half maximum, in millimeters.
+    verbose : :obj:`int`, optional
+        Controls the amount of verbosity: higher numbers give more messages
+        (0 means no messages). Default=0.
 
 
     Returns
@@ -400,11 +410,11 @@ def dog_img(img, fwhm):
 
     img = check_niimg(img)
     
-    print(f'Input intensity range {np.nanmin(img)}..{np.nanmax(img)}')
-    print(f'Image shape {img.shape[0]}x{img.shape[1]}x{img.shape[2]}')
+    logger.log('Input intensity range {}..{}'.format(np.nanmin(img), np.nanmax(img)), verbose=verbose)
+    logger.log('Image shape {}x{}x{}'.format(img.shape[0], img.shape[1], img.shape[2]), verbose=verbose)
 
-    dog_fdata = dehaze(img, 3)
-    dog = difference_of_gaussian(dog_fdata, img.affine, fwhm)
+    dog_fdata = dehaze(img, 3, verbose)
+    dog = difference_of_gaussian(dog_fdata, img.affine, fwhm, verbose)
     out_img = new_img_like(img, dog, img.affine, copy_header=False)
     return out_img
 
