@@ -287,7 +287,19 @@ def smooth_img(imgs, fwhm):
     else:
         return ret
 
-def bound(lo, hi, val):
+def clamp(low, high, value):
+    """bound an integer to a range
+
+    Parameters
+    ----------
+    low : int
+    high : int
+    value : int
+
+    Returns
+    -------
+    result : int
+    """
     return max(lo, min(hi, val))
 
 def dehaze(img, level, verbose=0):
@@ -300,8 +312,8 @@ def dehaze(img, level, verbose=0):
         Image(s) to run DoG on (see :ref:`extracting_data`
         for a detailed description of the valid input types).
     level : int
-    	value 1..5 with larger values preserving more bright voxels
-    	dark_classes/total_classes
+        value 1..5 with larger values preserving more bright voxels
+        dark_classes/total_classes
             1: 3/4
             2: 2/3
             3: 1/2
@@ -318,10 +330,10 @@ def dehaze(img, level, verbose=0):
 
     """
     fdata = img.get_fdata()
-    level = bound(1, 5, level)
+    level = clamp(1, 5, level)
     n_classes = abs(3 - level) + 2
     dark_classes = 4 - level
-    dark_classes = bound(1, 3, dark_classes)
+    dark_classes = clamp(1, 3, dark_classes)
     thresholds = skimage.filters.threshold_multiotsu(fdata, n_classes)
     thresh = thresholds[dark_classes - 1]
     logger.log("Zeroing voxels darker than {}".format(thresh), verbose=verbose)
