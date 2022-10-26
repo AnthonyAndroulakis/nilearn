@@ -21,6 +21,7 @@
    coord_transform
    copy_img
    crop_img
+   dog_img
    get_data
    high_variance_confounds
    index_img
