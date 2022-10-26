@@ -9,6 +9,7 @@ NEW
 ---
 
 - New classes :class:`~maskers.MultiNiftiLabelsMasker` and :class:`~maskers.MultiNiftiMapsMasker` create maskers to extract signals from a list of subjects with 4D images using parallelization (:gh:`3237` by `Yasmin Mzayek`_).
+- New function :func:`~nilearn.image.dog_img` to find edges using Difference of Gaussian (:gh:`todo` by `Anthony Androulakis`_).
 
 Fixes
 -----
