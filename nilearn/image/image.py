@@ -300,7 +300,7 @@ def clamp(low, high, value):
     -------
     result : int
     """
-    return max(lo, min(hi, val))
+    return max(low, min(high, value))
 
 def dehaze(img, level, verbose=0):
     """use Otsu to threshold https://scikit-image.org/docs/stable/auto_examples/segmentation/plot_multiotsu.html
