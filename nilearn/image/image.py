@@ -14,7 +14,6 @@ import math
 import nibabel
 import numpy as np
 from joblib import Parallel, delayed
-import skimage
 from scipy.ndimage import (
     label,
     gaussian_filter1d,
@@ -34,6 +33,7 @@ from .._utils.niimg import _get_data, _safe_get_data
 from .._utils.niimg_conversions import _check_same_fov, _index_img
 from .._utils.param_validation import check_threshold
 from .._utils.helpers import rename_parameters, stringify_path
+from .._utils.thresholding import otsu_multithreshold
 from .._utils import logger
 
 
@@ -334,7 +334,7 @@ def dehaze(img, level, verbose=0):
     n_classes = abs(3 - level) + 2
     dark_classes = 4 - level
     dark_classes = clamp(1, 3, dark_classes)
-    thresholds = skimage.filters.threshold_multiotsu(fdata, n_classes)
+    thresholds = otsu_multithreshold(fdata, n_classes)
     thresh = thresholds[dark_classes - 1]
     logger.log("Zeroing voxels darker than {}".format(thresh), verbose=verbose)
     fdata[fdata < thresh] = 0
